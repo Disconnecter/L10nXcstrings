@@ -65,6 +65,7 @@ l10n-xcstrings
 - Unused keys are marked in the enum like so:
 
 ```
+#warning("Unused key: loginTitle")
 case loginTitle = "login.title" //TODO: Unused
 ```
 
@@ -81,6 +82,10 @@ case loginTitle = "login.title" //TODO: Unused
 - Directory to scan Swift source code
 ```
  "--source-dir", default="."
+```
+- Directories to ignore during scanning. Space-separated.
+```
+ "--ignore-dirs", default=[]
 ```
 - Name of the generated enum
 ```
