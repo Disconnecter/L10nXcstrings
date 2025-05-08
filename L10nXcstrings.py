@@ -117,7 +117,7 @@ def generate_strings(args):
             types = extract_placeholder_types(string_value)
             comment = f"  /// {sanitize_comment(string_value)}"
             if swift_key in unused_keys:
-                comment += " // TODO: Unused"
+                comment = f"  #warning(\"Unused key: {swift_key}\")\n" + comment
             f.write(f"{comment}\n")
             if types:
                 f.write(f"  case {swift_key}({', '.join(types)})\n")

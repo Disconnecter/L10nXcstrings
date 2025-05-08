@@ -65,6 +65,7 @@ l10n-xcstrings
 - Unused keys are marked in the enum like so:
 
 ```
+#warning("Unused key: loginTitle")
 case loginTitle = "login.title" //TODO: Unused
 ```
 
