@@ -1,0 +1,86 @@
+name: Create Release and Update Homebrew Formula
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "The new release tag (e.g., v1.0.0)"
+        required: true
+        default: "v1.0.0"
+      release_notes:
+        description: "Release notes for the new version"
+        required: true
+        default: "Release notes for the new version"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Check out the current repository
+      - name: Check out code
+        uses: actions/checkout@v3
+
+      # Step 2: Set up Git
+      - name: Set up Git
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+
+      # Step 3: Create a new GitHub release
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        with:
+          tag_name: ${{ github.event.inputs.tag }}
+          release_name: ${{ github.event.inputs.tag }}
+          body: ${{ github.event.inputs.release_notes }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Step 4: Download the release tar.gz file
+      - name: Download Release Asset
+        run: |
+          TAG=${{ github.event.inputs.tag }}
+          REPO=${{ github.repository }}
+          ASSET_URL="https://github.com/$REPO/archive/refs/tags/$TAG.tar.gz"
+          curl -L -o l10n_xcstrings-$TAG.tar.gz "$ASSET_URL"
+
+      # Step 5: Calculate SHA256 checksum
+      - name: Calculate SHA256
+        id: calculate_sha
+        run: |
+          SHA256=$(sha256sum l10n_xcstrings-${{ github.event.inputs.tag }}.tar.gz | awk '{print $1}')
+          echo "sha256=$SHA256" >> $GITHUB_ENV
+
+      # Step 6: Clone the homebrew-l10n repository
+      - name: Clone Homebrew Repository
+        run: |
+          git clone https://github.com/Disconnecter/homebrew-l10n.git
+          cd homebrew-l10n
+
+      # Step 7: Update the Homebrew formula
+      - name: Update Homebrew Formula
+        run: |
+          cd homebrew-l10n
+          FORMULA_PATH="Formula/l10n_xcstrings.rb"
+          TAG=${{ github.event.inputs.tag }}
+          URL="https://github.com/${{ github.repository }}/archive/refs/tags/$TAG.tar.gz"
+          SHA256=${{ env.sha256 }}
+
+          # Update the formula file
+          sed -i.bak "s|url \".*\"|url \"$URL\"|" "$FORMULA_PATH"
+          sed -i.bak "s|sha256 \".*\"|sha256 \"$SHA256\"|" "$FORMULA_PATH"
+
+          # Commit and push the changes
+          git add "$FORMULA_PATH"
+          git commit -m "Update Homebrew formula for $TAG"
+          git push origin main
+
+      # Step 8: Push changes to the Homebrew repository
+      - name: Push to Homebrew Repository
+        run: |
+          cd homebrew-l10n
+          git push origin main
