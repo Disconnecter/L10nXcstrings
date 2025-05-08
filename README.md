@@ -83,6 +83,9 @@ case loginTitle = "login.title" //TODO: Unused
 ```
  "--source-dir", default="."
 ```
+- Directories to ignore during scanning. Space-separated.
+```
+ "--ignore-dirs", default=[]
 - Name of the generated enum
 ```
  "--enum-name", default="L10n"
