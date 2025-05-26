@@ -1,5 +1,7 @@
 # 🔤 Localization Keys Generator & Cleaner for iOS (SwiftGen-style)
 
+🤖  **CHATGPT DRIVEN PROJECT**
+
 This script (`L10nXcstrings.py`) automates the management of iOS localization strings using the new `Localizable.xcstrings` format. It helps you:
 
 - ✅ Generate a Swift enum (`L10n`) with all localization keys as `case` constants
