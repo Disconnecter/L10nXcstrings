@@ -1,6 +1,7 @@
 # 🔤 Localization Keys Generator & Cleaner for iOS (SwiftGen-style)
 
-[![Tests](https://github.com/Disconnecter/L10nXcstrings/blob/main/.github/workflows/python-tests.yml/badge.svg)](https://github.com/Disconnecter/L10nXcstrings/blob/main/.github/workflows/python-tests.yml)
+![Tests](https://github.com/Disconnecter/L10nXcstrings/actions/workflows/python-tests.yml/badge.svg)
+
 
 🤖  **CHATGPT DRIVEN PROJECT**
 
