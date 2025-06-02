@@ -1,5 +1,7 @@
 # 🔤 Localization Keys Generator & Cleaner for iOS (SwiftGen-style)
 
+[![Tests](https://github.com/Disconnecter/L10nXcstrings/blob/main/.github/workflows/python-tests.yml/badge.svg)](https://github.com/Disconnecter/L10nXcstrings/blob/main/.github/workflows/python-tests.yml)
+
 🤖  **CHATGPT DRIVEN PROJECT**
 
 This script (`L10nXcstrings.py`) automates the management of iOS localization strings using the new `Localizable.xcstrings` format. It helps you:
