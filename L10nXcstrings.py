@@ -20,31 +20,33 @@ def get_keys_and_strings_from_xcstrings(path):
     return result
 
 def extract_placeholder_types(string_value: str) -> list[str]:
-    pattern = r'%(\d+\$)?[+\-#0 ]*(?:\d+)?(?:\.\d+)?[hlL]?([@diufFeEgGxXoscp])'
+    pattern = r'%(\d+\$)?[+\-#0 ]*(?:\d+)?(?:\.\d+)?([hlL]?)([@diufFeEgGxXoscp])'
     matches = list(re.finditer(pattern, string_value))
 
     positionals = {}
     order = []
 
-    def swift_type(spec):
-        if spec in {'d', 'i'}:
+    def swift_type(length, spec):
+        if length == 'l' and spec in {'d', 'i'}:
+            return 'Int64'
+        elif length == 'l' and spec == 'u':
+            return 'UInt64'
+        elif spec in {'d', 'i'}:
             return 'Int'
-        elif spec in {'u'}:
+        elif spec == 'u':
             return 'UInt'
         elif spec in {'f', 'F', 'e', 'E', 'g', 'G'}:
             return 'Double'
-        elif spec in {'@'}:
+        elif spec == '@':
             return 'String'
-        elif spec in {'c'}:
+        elif spec == 'c':
             return 'Character'
-        elif spec in {'li', 'ld'}:
-            return 'Int64'
         else:
             return 'CVarArg'
 
     for idx, match in enumerate(matches):
-        pos, spec = match.groups()
-        typ = swift_type(spec)
+        pos, length, spec = match.groups()
+        typ = swift_type(length, spec)
 
         if pos:
             index = int(pos[:-1]) - 1
@@ -71,7 +73,7 @@ def find_used_keys_in_code(source_dir, keys, enum_name, ignore_dirs):
                 with open(os.path.join(root, file), "r", encoding="utf-8") as f:
                     content = f.read()
                     matches = pattern.findall(content)
-                    used_keys.update(matches)
+                    used_keys.update(m for m in matches if m in keys)
 
     return used_keys
 
@@ -94,7 +96,7 @@ def find_unused_keys(args, swiftified_keys):
     return unused
 
 def sanitize_comment(text):
-        return ' '.join(text.strip().splitlines())
+    return ' '.join(text.strip().splitlines())
 
 def generate_strings(args):
     keys_and_strings = get_keys_and_strings_from_xcstrings(args.input)

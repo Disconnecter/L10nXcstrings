@@ -40,7 +40,7 @@ class TestL10nXcstrings(unittest.TestCase):
         mock_walk.return_value = [
             ("/mock_dir", ["subdir"], ["file1.swift"]),
         ]
-        mock_file_content = "L10n.key1 L10n.key2"
+        mock_file_content = "L10n.key1 L10n.key2 L10n.other"
         with patch("builtins.open", mock_open(read_data=mock_file_content)):
             result = find_used_keys_in_code(
                 "/mock_dir", {"key1", "key2", "key3"}, "L10n", []
@@ -86,6 +86,11 @@ class TestL10nXcstrings(unittest.TestCase):
     def test_extract_placeholder_types_edge_cases(self):
         self.assertEqual(extract_placeholder_types("No placeholders"), [])
         self.assertEqual(extract_placeholder_types("%@ and %d"), ["String", "Int"])
+
+    def test_extract_placeholder_types_int64(self):
+        string_value = "Values %ld and %lu"
+        result = extract_placeholder_types(string_value)
+        self.assertEqual(result, ["Int64", "UInt64"])
 
 if __name__ == "__main__":
     unittest.main()
