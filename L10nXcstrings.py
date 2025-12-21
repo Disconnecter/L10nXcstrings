@@ -20,16 +20,20 @@ def get_keys_and_strings_from_xcstrings(path):
     return result
 
 def extract_placeholder_types(string_value: str) -> list[str]:
-    pattern = r'%(\d+\$)?[+\-#0 ]*(?:\d+)?(?:\.\d+)?[hlL]?([@diufFeEgGxXoscp])'
+    pattern = r'%(\d+\$)?[+\-#0 ]*(?:\d+)?(?:\.\d+)?(hh|h|ll|l|L|z|t|j)?([@diufFeEgGxXoscp])'
     matches = list(re.finditer(pattern, string_value))
 
     positionals = {}
     order = []
 
-    def swift_type(spec):
+    def swift_type(length, spec):
         if spec in {'d', 'i'}:
+            if length == 'll':
+                return 'Int64'
             return 'Int'
         elif spec in {'u'}:
+            if length == 'll':
+                return 'UInt64'
             return 'UInt'
         elif spec in {'f', 'F', 'e', 'E', 'g', 'G'}:
             return 'Double'
@@ -37,14 +41,12 @@ def extract_placeholder_types(string_value: str) -> list[str]:
             return 'String'
         elif spec in {'c'}:
             return 'Character'
-        elif spec in {'li', 'ld'}:
-            return 'Int64'
         else:
             return 'CVarArg'
 
     for idx, match in enumerate(matches):
-        pos, spec = match.groups()
-        typ = swift_type(spec)
+        pos, length, spec = match.groups()
+        typ = swift_type(length, spec)
 
         if pos:
             index = int(pos[:-1]) - 1
@@ -53,19 +55,34 @@ def extract_placeholder_types(string_value: str) -> list[str]:
             order.append(typ)
 
     if positionals:
-        return [positionals[i] for i in sorted(positionals.keys())]
-    else:
-        return order
+        max_index = max(positionals.keys(), default=-1)
+        return [positionals.get(i, 'CVarArg') for i in range(max_index + 1)]
+    return order
 
 def swiftify_key(key: str) -> str:
     return re.sub(r'[._-](\w)', lambda m: m.group(1).upper(), key)
+
+def should_ignore_dir(root, dir_name, source_dir, ignore_dirs):
+    dir_path = os.path.join(root, dir_name)
+    rel_path = os.path.relpath(dir_path, source_dir)
+    rel_norm = os.path.normpath(rel_path)
+    rel_parts = rel_norm.split(os.sep)
+    for ignore in ignore_dirs:
+        ignore_norm = os.path.normpath(ignore)
+        if os.sep in ignore_norm:
+            if rel_norm == ignore_norm or rel_norm.startswith(ignore_norm + os.sep):
+                return True
+        else:
+            if ignore_norm in rel_parts:
+                return True
+    return False
 
 def find_used_keys_in_code(source_dir, keys, enum_name, ignore_dirs):
     used_keys = set()
     pattern = re.compile(rf'\b{re.escape(enum_name)}\.([a-zA-Z0-9_]+)\b')
 
     for root, dirs, files in os.walk(source_dir):
-        dirs[:] = [d for d in dirs if not any(os.path.join(root, d).startswith(os.path.join(source_dir, ignore)) for ignore in ignore_dirs)]
+        dirs[:] = [d for d in dirs if not should_ignore_dir(root, d, source_dir, ignore_dirs)]
         for file in files:
             if file.endswith(".swift"):
                 with open(os.path.join(root, file), "r", encoding="utf-8") as f:
@@ -103,7 +120,9 @@ def generate_strings(args):
     swiftified_keys = {swiftify_key(k): k for k in sorted_keys}
     unused_keys = find_unused_keys(args, swiftified_keys)
 
-    os.makedirs(os.path.dirname(args.output_swift), exist_ok=True)
+    output_dir = os.path.dirname(args.output_swift)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
 
     with open(args.output_swift, "w", encoding="utf-8") as f:
         f.write("// swiftlint:disable all\n")
