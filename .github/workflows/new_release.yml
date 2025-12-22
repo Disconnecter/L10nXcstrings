@@ -79,6 +79,11 @@ jobs:
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           path: homebrew-l10n
 
+      - name: Ensure Homebrew tap remote uses token
+        run: |
+          cd homebrew-l10n
+          git remote set-url origin https://x-access-token:${{ secrets.HOMEBREW_TAP_TOKEN }}@github.com/Disconnecter/homebrew-l10n.git
+
       - name: Update Homebrew formula
         run: |
           set -euo pipefail
