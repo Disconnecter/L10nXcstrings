@@ -1,86 +1,96 @@
-name: Create Release and Update Homebrew Formula
+name: Release
 
 on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "The new release tag (e.g., v1.0.0)"
-        required: true
-        default: "v1.0.0"
+        description: "The new release tag (e.g., v1.0.0). Leave empty if already pushing a tag."
+        required: false
       release_notes:
-        description: "Release notes for the new version"
-        required: true
-        default: "Release notes for the new version"
+        description: "Release notes for the new version (optional)."
+        required: false
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
 
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
 
     steps:
-      # Step 1: Check out the current repository
       - name: Check out code
-        uses: actions/checkout@v3
-
-      # Step 2: Set up Git
-      - name: Set up Git
-        run: |
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
-
-      # Step 3: Create a new GitHub release
-      - name: Create GitHub Release
-        id: create_release
-        uses: actions/create-release@v1
+        uses: actions/checkout@v4
         with:
-          tag_name: ${{ github.event.inputs.tag }}
-          release_name: ${{ github.event.inputs.tag }}
-          body: ${{ github.event.inputs.release_notes }}
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
 
-      # Step 4: Download the release tar.gz file
-      - name: Download Release Asset
+      - name: Validate tag input
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         run: |
-          TAG=${{ github.event.inputs.tag }}
-          REPO=${{ github.repository }}
-          ASSET_URL="https://github.com/$REPO/archive/refs/tags/$TAG.tar.gz"
-          curl -L -o l10n_xcstrings-$TAG.tar.gz "$ASSET_URL"
+          if [ -z "${{ inputs.tag }}" ]; then
+            echo "Input tag is required when running manually."
+            exit 1
+          fi
 
-      # Step 5: Calculate SHA256 checksum
+      - name: Create GitHub release (manual with notes)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.release_notes != '' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          name: ${{ env.TAG }}
+          body: ${{ inputs.release_notes }}
+
+      - name: Create GitHub release (manual auto notes)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.release_notes == '' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          name: ${{ env.TAG }}
+          generate_release_notes: true
+
+      - name: Create GitHub release (tag push)
+        if: ${{ github.event_name == 'push' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          name: ${{ env.TAG }}
+          generate_release_notes: true
+
+      - name: Download release archive
+        run: |
+          set -euo pipefail
+          ASSET_URL="https://github.com/${{ github.repository }}/archive/refs/tags/${{ env.TAG }}.tar.gz"
+          curl -L -o "l10n_xcstrings-${{ env.TAG }}.tar.gz" "$ASSET_URL"
+
       - name: Calculate SHA256
         id: calculate_sha
         run: |
-          SHA256=$(sha256sum l10n_xcstrings-${{ github.event.inputs.tag }}.tar.gz | awk '{print $1}')
-          echo "sha256=$SHA256" >> $GITHUB_ENV
+          SHA256=$(sha256sum "l10n_xcstrings-${{ env.TAG }}.tar.gz" | awk '{print $1}')
+          echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
 
-      # Step 6: Clone the homebrew-l10n repository
-      - name: Clone Homebrew Repository
-        run: |
-          git clone https://github.com/Disconnecter/homebrew-l10n.git
-          cd homebrew-l10n
+      - name: Check out Homebrew tap
+        uses: actions/checkout@v4
+        with:
+          repository: Disconnecter/homebrew-l10n
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-l10n
 
-      # Step 7: Update the Homebrew formula
-      - name: Update Homebrew Formula
+      - name: Update Homebrew formula
         run: |
+          set -euo pipefail
           cd homebrew-l10n
           FORMULA_PATH="Formula/l10n_xcstrings.rb"
-          TAG=${{ github.event.inputs.tag }}
-          URL="https://github.com/${{ github.repository }}/archive/refs/tags/$TAG.tar.gz"
-          SHA256=${{ env.sha256 }}
+          URL="https://github.com/${{ github.repository }}/archive/refs/tags/${{ env.TAG }}.tar.gz"
 
-          # Update the formula file
-          sed -i.bak "s|url \".*\"|url \"$URL\"|" "$FORMULA_PATH"
-          sed -i.bak "s|sha256 \".*\"|sha256 \"$SHA256\"|" "$FORMULA_PATH"
+          sed -i "s|url \".*\"|url \"$URL\"|" "$FORMULA_PATH"
+          sed -i "s|sha256 \".*\"|sha256 \"${{ steps.calculate_sha.outputs.sha256 }}\"|" "$FORMULA_PATH"
 
-          # Commit and push the changes
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
           git add "$FORMULA_PATH"
-          git commit -m "Update Homebrew formula for $TAG"
-          git push origin main
-
-      # Step 8: Push changes to the Homebrew repository
-      - name: Push to Homebrew Repository
-        run: |
-          cd homebrew-l10n
+          git commit -m "Update Homebrew formula for ${{ env.TAG }}"
           git push origin main
