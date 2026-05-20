@@ -1,115 +1,141 @@
-# 🔤 Localization Keys Generator & Cleaner for iOS (SwiftGen-style)
+# Localization Keys Generator and Cleaner for iOS
 
 ![Tests](https://github.com/Disconnecter/L10nXcstrings/actions/workflows/python-tests.yml/badge.svg)
 
+`L10nXcstrings.py` generates Swift localization helpers from Xcode
+`Localizable.xcstrings` catalogs and reports localization keys that are not used
+from Swift code.
 
-🤖  **CHATGPT DRIVEN PROJECT**
+## Features
 
-This script (`L10nXcstrings.py`) automates the management of iOS localization strings using the new `Localizable.xcstrings` format. It helps you:
+- Parses Xcode's JSON-based `.xcstrings` format.
+- Reads plain string units and nested catalog variation values, including plural
+  branches.
+- Uses `sourceLanguage` by default, with `--language` override support.
+- Fails when the selected language is missing for any key, unless
+  `--allow-missing` is passed.
+- Generates a Swift namespace enum with `public static var` and
+  `public static func` helpers.
+- Converts keys such as `login.title_screen` to `loginTitleScreen`.
+- Escapes Swift keywords and reports identifier collisions.
+- Adds stable hash suffixes for non-ASCII keys that cannot be represented by the
+  ASCII Swift naming policy.
+- Scans Swift source for explicit `L10n.key` usage, native localization calls
+  such as `String(localized:)`, `NSLocalizedString`, SwiftUI title-key views,
+  and custom call/member names supplied from the CLI.
+- Writes unused original localization keys to `Unused.txt`.
+- Verifies generated Swift with Swift 6 typechecking and runtime bundle-resource
+  tests when `swiftc` is available.
 
-- ✅ Generate a Swift enum (`L10n`) with all localization keys as `case` constants
-- ✅ Automatically annotate unused keys with `//TODO: Unused`
-- ✅ Find and export a list of unused localization keys to `Unused.txt`
+## Install
 
----
-
-## 🛠 Features
-
-- **Supports `.xcstrings`**: Parses Xcode's new JSON-based localization format.
-- **CamelCase key formatting**: Converts `login.title_screen` → `loginTitleScreen`.
-- **Safe enum generation**: Outputs a clean `Strings+Generated.swift` with `localize()` helper.
-- **Usage analysis**: Scans your Swift codebase for usage of `L10n.<key>`.
-- **Unused keys check**: Detects and marks localization keys that are not used anywhere in the codebase.
-
----
-
-## 📦 File Structure Sample
-
+```bash
+brew tap disconnecter/l10n https://github.com/Disconnecter/homebrew-l10n
+brew install l10n-xcstrings
 ```
-SRC/
-├── Resources/
-│   ├── Localizable.xcstrings
-│   └── Generated/
-│       └── Strings+Generated.swift   ← ✅ Auto-generated
-└── Unused.txt                        ← 📄 List of unused keys (if any)
-```
----
 
-## 🚀 Usage
-0. **Install the script via Homebrew**
-   ```
-   brew tap disconnecter/l10n https://github.com/Disconnecter/homebrew-l10n
-   ```
-   ```
-   brew install l10n-xcstrings
-   ```
-   
-1. **Place your `.xcstrings` file** in the correct path (`Resources/Localizable.xcstrings`)
-2. **Run the script**:
+## Usage
+
+Place your catalog at `Localizable.xcstrings`, then run:
 
 ```bash
 l10n-xcstrings
 ```
 
-4.	**🎉 You’ll get:**
-- Strings+Generated.swift (updated)
-- Unused.txt (if unused keys found)
-- Output in terminal showing the count of unused keys
+With explicit paths:
 
----
-
-## 🧪 Requirements
-- Python 3.6+
-- Xcode .xcstrings file format (JSON)
-- Swift codebase that uses L10n.<key> to reference localizations
-
----
-
-## 📝 Notes
-- The script automatically camelCases keys like k-about.welcome_screen → kAboutWelcomeScreen
-- Unused keys are marked in the enum like so:
-
+```bash
+l10n-xcstrings \
+  --input Resources/Localizable.xcstrings \
+  --output-swift Resources/Generated/Strings+Generated.swift \
+  --output-unused Unused.txt \
+  --source-dir Sources \
+  --ignore-dirs build DerivedData \
+  --table-name Localizable \
+  --bundle Bundle.module \
+  --localized-call ChipTitle \
+  --localized-member toolbarTitle
 ```
+
+Generated Swift looks like this:
+
+```swift
+public enum L10n {
+  /// Sign in
+  public static var loginTitle: String {
+    return tr(key: "login.title")
+  }
+
+  /// Count %d
+  public static func countValue(_ p1: Int) -> String {
+    return tr(key: "count.value", p1)
+  }
+}
+```
+
+Unused keys are annotated in generated Swift and written to `Unused.txt`:
+
+```swift
 #warning("Unused key: loginTitle")
-case loginTitle = "login.title" //TODO: Unused
+public static var loginTitle: String {
+  return tr(key: "login.title")
+}
 ```
 
-## 🎮 Parameters
+## Parameters
 
-- Path to `.xcstrings` file
-```
- "--input", default="Localizable.xcstrings"
-```
-- Path to output `.swift` file
-```
- "--output-swift", default="Generated/Strings+Generated.swift"
-```
-- Directory to scan Swift source code
-```
- "--source-dir", default="."
-```
-- Directories to ignore during scanning. Space-separated.
-```
- "--ignore-dirs", default=[]
-```
-- Name of the generated enum
-```
- "--enum-name", default="L10n"
+| Parameter | Default | Description |
+| --- | --- | --- |
+| `--input` | `Localizable.xcstrings` | Path to the source `.xcstrings` file. |
+| `--output-swift` | `Generated/Strings+Generated.swift` | Path for generated Swift. |
+| `--output-unused` | `Unused.txt` | Path for original unused keys. |
+| `--source-dir` | `.` | Directory scanned for Swift usage. |
+| `--ignore-dirs` | none | Space-separated directories to skip while scanning. |
+| `--enum-name` | `L10n` | Generated Swift namespace name. |
+| `--language` | `sourceLanguage` or `en` | Catalog language to read. |
+| `--allow-missing` | off | Skip keys missing the selected language instead of failing. |
+| `--table-name` | none | Localization table name passed to `NSLocalizedString`. |
+| `--bundle` | `Bundle.main` | Swift bundle expression passed to `NSLocalizedString`. Use `Bundle.module` for Swift packages. |
+| `--localized-call` | built-in Swift/iOS title-key calls | Additional function/type call whose first string literal argument is a localization key. Repeat for multiple names. |
+| `--localized-member` | built-in SwiftUI title-key members | Additional member call whose first string literal argument is a localization key. Repeat for multiple names. |
+
+## Requirements
+
+- Python 3.9+
+- Xcode `.xcstrings` JSON catalog
+- Swift code that references generated helpers as `L10n.key` or typed shorthand
+  values
+
+## Tests
+
+```bash
+python3 -m pip install .[dev]
+ruff check .
+python3 -m unittest discover -s tests
 ```
 
----
-## 📝TODO:
-- ✅ add parameters
-- ~Make a SPM compatible~ Not working solution, because of the sandbox of SPM
-- ✅ Make a brew package
----
+When `swiftc` is installed, the tests also typecheck generated Swift with a
+small Swift caller under Swift 6.
 
-## 📄 License
+## Notes
 
-MIT — free to use, modify, and contribute.
+- Literal percent signs in localized strings must be escaped as `%%`.
+- Use `%@` for Swift string arguments. C string placeholders (`%s`) are rejected
+  because passing Swift `String` values to `%s` compiles but formats incorrectly.
+- Dynamic printf widths and precisions such as `%*d` are rejected.
+- Plural placeholders such as `%#@items@` are accepted. Concrete variation
+  branches are used to infer a stronger Swift argument type when possible, and
+  generated Swift uses `String.localizedStringWithFormat` so `.stringsdict`
+  plural resources are resolved at runtime.
+- Positional placeholders must be complete and consistent, for example
+  `%2$@ %1$d`.
+- Version `0.0.6` changes generated Swift from value enum cases to static
+  namespace properties/functions. Existing callers such as `L10n.title.string`
+  should migrate to `L10n.title`; associated-value cases should migrate to
+  generated static functions such as `L10n.countValue(3)`.
+- Release tags use bare semantic versions such as `0.0.6`; the release workflow
+  requires the tag to match `pyproject.toml`.
 
----
+## License
 
-🙌 Contributions
-
-Feel free to open issues or submit PRs to extend functionality — e.g., support for filtering folders, checking .localized() string usage, or CLI argument support.
+MIT

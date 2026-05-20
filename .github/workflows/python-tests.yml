@@ -9,23 +9,73 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+    env:
+      PYTHONPATH: ${{ github.workspace }}
 
     steps:
       - name: Check out code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install package and dev tools
+        run: python -m pip install .[dev]
+
+      - name: Run lint
+        run: ruff check .
+
+      - name: Run tests
+        run: python -m unittest discover -s tests
+
+      - name: Smoke test CLI entry point
+        run: l10n-xcstrings --help
+
+  package:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Install dependencies
+      - name: Build wheel and source distribution
         run: |
-          python -m pip install --upgrade pip
-          pip install pytest
+          python -m pip install build
+          python -m build
 
-      - name: Set PYTHONPATH
-        run: echo "PYTHONPATH=$(pwd)" >> $GITHUB_ENV
+      - name: Install wheel in a clean virtualenv
+        run: |
+          python -m venv /tmp/l10n-xcstrings-smoke
+          /tmp/l10n-xcstrings-smoke/bin/python -m pip install dist/*.whl
+          /tmp/l10n-xcstrings-smoke/bin/l10n-xcstrings --help
 
-      - name: Run tests
-        run: pytest tests
+  swift6-generated-output:
+    runs-on: macos-latest
+    env:
+      PYTHONPATH: ${{ github.workspace }}
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Show Swift version
+        run: swift --version
+
+      - name: Verify generated Swift typechecks in Swift 6
+        run: python -m unittest tests.test_l10n.TestL10nXcstrings.test_generated_swift_typechecks_with_swift6_caller
