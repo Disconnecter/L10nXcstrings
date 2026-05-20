@@ -22,6 +22,32 @@ from L10nXcstrings import (
 )
 
 
+def darwin_swiftc_or_skip(test_case):
+    if sys.platform != "darwin":
+        test_case.skipTest("Swift Foundation localization tests require Darwin")
+    swiftc = shutil.which("swiftc")
+    if not swiftc:
+        test_case.skipTest("swiftc is not installed")
+    return swiftc
+
+
+def run_checked(test_case, command, **kwargs):
+    result = subprocess.run(command, capture_output=True, text=True, **kwargs)
+    if result.returncode != 0:
+        test_case.fail(
+            "\n".join(
+                [
+                    f"Command failed with exit code {result.returncode}: {command}",
+                    "stdout:",
+                    result.stdout,
+                    "stderr:",
+                    result.stderr,
+                ]
+            )
+        )
+    return result
+
+
 class TestL10nXcstrings(unittest.TestCase):
     def test_get_keys_and_strings_from_xcstrings(self):
         mock_data = {
@@ -651,9 +677,7 @@ class TestL10nXcstrings(unittest.TestCase):
             self.assertFalse(os.path.exists(unused_path))
 
     def test_generated_swift_typechecks_with_swift6_caller(self):
-        swiftc = shutil.which("swiftc")
-        if not swiftc:
-            self.skipTest("swiftc is not installed")
+        swiftc = darwin_swiftc_or_skip(self)
 
         with tempfile.TemporaryDirectory() as temp_dir:
             xcstrings_path = os.path.join(temp_dir, "Localizable.xcstrings")
@@ -705,17 +729,13 @@ class TestL10nXcstrings(unittest.TestCase):
                     )
                 )
 
-            subprocess.run(
+            run_checked(
+                self,
                 [swiftc, "-swift-version", "6", "-typecheck", output_path, caller_path],
-                check=True,
-                capture_output=True,
-                text=True,
             )
 
     def test_generated_swift_runs_with_bundle_strings_and_plurals(self):
-        swiftc = shutil.which("swiftc")
-        if not swiftc:
-            self.skipTest("swiftc is not installed")
+        swiftc = darwin_swiftc_or_skip(self)
 
         with tempfile.TemporaryDirectory() as temp_dir:
             xcstrings_path = os.path.join(temp_dir, "Localizable.xcstrings")
@@ -833,18 +853,14 @@ class TestL10nXcstrings(unittest.TestCase):
                     )
                 )
 
-            subprocess.run(
+            run_checked(
+                self,
                 [swiftc, output_path, caller_path, "-o", runner_path],
-                check=True,
-                capture_output=True,
-                text=True,
             )
-            result = subprocess.run(
+            result = run_checked(
+                self,
                 [runner_path],
                 cwd=temp_dir,
-                check=True,
-                capture_output=True,
-                text=True,
             )
 
             self.assertEqual(
